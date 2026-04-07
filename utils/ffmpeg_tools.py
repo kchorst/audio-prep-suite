@@ -1,14 +1,19 @@
 """
 utils/ffmpeg_tools.py
-Shared FFmpeg helpers for decoding, encoding, and converting audio files.
+Shared FFmpeg helpers. No console window on Windows.
 """
 
 import os
 import subprocess
 import tempfile
-
+import sys
 
 SUPPORTED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac"}
+
+# Suppress console window on Windows
+_POPEN_FLAGS = {}
+if sys.platform == "win32":
+    _POPEN_FLAGS["creationflags"] = subprocess.CREATE_NO_WINDOW
 
 
 def is_supported(path: str) -> bool:
@@ -25,14 +30,15 @@ def decode_to_wav(path: str) -> tuple[str, bool]:
     if ext == ".wav":
         return path, False
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    tmp_wav = tmp.name
-    tmp.close()
+    # Create temp file, close it immediately so ffmpeg can write to it on Windows
+    fd, tmp_wav = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
 
     result = subprocess.run(
         ["ffmpeg", "-y", "-i", path, "-ac", "1", "-ar", "44100", tmp_wav],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
+        **_POPEN_FLAGS,
     )
 
     if result.returncode != 0:
@@ -49,8 +55,7 @@ def decode_to_wav(path: str) -> tuple[str, bool]:
 def export_to_mp3(input_path: str, output_path: str, quality: int = 2) -> str:
     """
     Export any audio file to MP3 using libmp3lame.
-    quality: 0 (best) to 9 (worst). Default 2 = ~190 kbps VBR.
-    Returns output_path on success.
+    quality: 0 (best) to 9 (worst).
     """
     result = subprocess.run(
         [
@@ -61,6 +66,7 @@ def export_to_mp3(input_path: str, output_path: str, quality: int = 2) -> str:
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
+        **_POPEN_FLAGS,
     )
 
     if result.returncode != 0:
@@ -74,9 +80,7 @@ def export_to_mp3(input_path: str, output_path: str, quality: int = 2) -> str:
 
 def normalize_audio_ffmpeg(input_path: str, output_path: str) -> str:
     """
-    Normalize audio loudness to -14 LUFS (YouTube/streaming standard)
-    using ffmpeg's loudnorm filter.
-    Returns output_path on success.
+    Normalize audio loudness to -14 LUFS using ffmpeg loudnorm filter.
     """
     result = subprocess.run(
         [
@@ -86,6 +90,7 @@ def normalize_audio_ffmpeg(input_path: str, output_path: str) -> str:
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
+        **_POPEN_FLAGS,
     )
 
     if result.returncode != 0:

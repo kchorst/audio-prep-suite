@@ -1,100 +1,138 @@
 """
-converters/wav_to_mp3.py
-Batch WAV → MP3 converter — GUI frontend.
-Supports optional normalization and silence trimming before export.
+converters/wav_to_mp3.py  v2.0
+Batch WAV → MP3 Converter — rebuilt on BaseToolWindow.
 """
 
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import soundfile as sf
-import tkinter as tk
-from tkinter import filedialog, messagebox
+import customtkinter as ctk
+from tkinter import messagebox
 
+from utils.base_gui import BaseToolWindow
 from utils.ffmpeg_tools import export_to_mp3, normalize_audio_ffmpeg
 from utils.file_tools import replace_extension
-from utils.threading_tools import GuiLogger, run_in_thread
+from utils.threading_tools import run_in_thread
+from utils import config
 
 
-class WavToMp3Gui:
-    def __init__(self, master: tk.Tk):
-        self.master = master
-        master.title("Batch WAV → MP3 Converter")
-
-        self.norm_var = tk.BooleanVar(value=False)
-        self.trim_var = tk.BooleanVar(value=False)
-        self.selected_files: list[str] = []
-
-        self._build_ui()
-
-    def _build_ui(self):
-        frame = tk.Frame(self.master)
-        frame.pack(padx=12, pady=10, fill="both", expand=True)
-
-        tk.Checkbutton(frame, text="Normalize audio before export", variable=self.norm_var).pack(anchor="w")
-        tk.Checkbutton(frame, text="Trim silence before export", variable=self.trim_var).pack(anchor="w")
-
-        tk.Button(frame, text="Browse WAV Files", command=self._browse).pack(pady=(8, 2), fill="x")
-        tk.Button(frame, text="Convert to MP3", command=self._start_convert).pack(pady=2, fill="x")
-
-        txt = tk.Text(frame, height=16, width=80)
-        txt.pack(fill="both", expand=True, pady=(6, 0))
-        self.logger = GuiLogger(self.master, txt)
-
-    def _browse(self):
-        files = filedialog.askopenfilenames(
-            title="Select WAV files",
-            filetypes=[("WAV Files", "*.wav"), ("All Files", "*.*")],
+class WavToMp3Gui(BaseToolWindow):
+    def __init__(self):
+        super().__init__(
+            title="WAV → MP3 Converter",
+            subtitle="Batch convert WAV files to MP3"
         )
-        if files:
-            self.selected_files = list(files)
-            self.logger.log(f"Selected {len(files)} file(s):")
-            for f in self.selected_files:
-                self.logger.log("  " + os.path.basename(f))
-            self.logger.log("")
+        self._build_options()
+        self._build_action_buttons()
+
+    def _build_options(self):
+        self.norm_var = ctk.BooleanVar(value=config.get("default_norm", False))
+        self.trim_var = ctk.BooleanVar(value=config.get("default_trim", False))
+
+        ctk.CTkLabel(
+            self.options_frame, text="Export Options",
+            font=ctk.CTkFont(size=12, weight="bold"), anchor="w"
+        ).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 4))
+
+        ctk.CTkCheckBox(
+            self.options_frame,
+            text="Normalize to −14 LUFS before export  (YouTube / streaming standard)",
+            variable=self.norm_var
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=4)
+
+        ctk.CTkCheckBox(
+            self.options_frame,
+            text="Trim silence before export",
+            variable=self.trim_var
+        ).grid(row=2, column=0, sticky="w", padx=16, pady=(4, 10))
+
+    def _build_action_buttons(self):
+        self.convert_btn = ctk.CTkButton(
+            self.buttons_frame, text="Convert to MP3",
+            command=self._start_convert
+        )
+        self.convert_btn.grid(row=0, column=0, padx=(0, 6), pady=8, sticky="ew")
+
+        ctk.CTkButton(
+            self.buttons_frame, text="Clear",
+            fg_color="transparent", border_width=1,
+            command=self._reset,
+        ).grid(row=0, column=2, padx=(6, 0), pady=8, sticky="ew")
+
+    def on_files_selected(self, files):
+        self.clear_log()
+        self.log(f"Loaded {len(files)} file(s) for conversion.", "info")
 
     def _start_convert(self):
-        if not self.selected_files:
-            messagebox.showerror("Error", "No files selected.")
+        if not self._dropped_files:
+            messagebox.showerror("No Files", "Please browse or drop WAV files first.")
             return
-
-        self.logger.clear()
-        self.logger.log("Converting… please wait.\n")
-        run_in_thread(self._run_convert, on_error=lambda e: self.logger.log(f"Error: {e}"))
+        self.clear_log()
+        self.show_progress()
+        self.set_status("Converting…")
+        self.convert_btn.configure(state="disabled")
+        run_in_thread(self._run_convert, on_error=self._on_error)
 
     def _run_convert(self):
+        import tempfile, librosa, librosa.effects, soundfile as sf
         norm = self.norm_var.get()
         trim = self.trim_var.get()
+        total = len(self._dropped_files)
 
-        for path in self.selected_files:
+        for i, path in enumerate(self._dropped_files, 1):
+            self.set_status(f"Converting {i} of {total}…")
             try:
                 src = path
+                tmp_files = []
 
                 if norm:
-                    normed = replace_extension(path, "_normalized.wav")
+                    normed = tempfile.mktemp(suffix="_norm.wav")
                     normalize_audio_ffmpeg(src, normed)
+                    tmp_files.append(normed)
                     src = normed
 
                 if trim:
-                    import tempfile, librosa, librosa.effects, soundfile as sf
                     y, sr = librosa.load(src, sr=None)
-                    y, _ = librosa.effects.trim(y, top_db=30)
-                    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-                    sf.write(tmp.name, y, sr)
-                    src = tmp.name
+                    y, _ = librosa.effects.trim(y, top_db=config.get("trim_top_db", 30))
+                    trimmed = tempfile.mktemp(suffix="_trim.wav")
+                    sf.write(trimmed, y, sr)
+                    tmp_files.append(trimmed)
+                    src = trimmed
 
                 mp3_path = replace_extension(path, ".mp3")
-                export_to_mp3(src, mp3_path)
-                self.logger.log(f"✓  {os.path.basename(mp3_path)}")
+                export_to_mp3(src, mp3_path, quality=config.get("mp3_quality", 2))
+                self.log(f"OK  {os.path.basename(mp3_path)}", "success")
+
+                for t in tmp_files:
+                    try: os.remove(t)
+                    except: pass
 
             except Exception as e:
-                self.logger.log(f"✗  {os.path.basename(path)}: {e}")
+                self.log(f"ERR {os.path.basename(path)}: {e}", "error")
 
-        self.master.after(0, lambda: messagebox.showinfo("Done", "Conversion complete."))
+        self.after(0, self._finish)
+
+    def _finish(self):
+        self.hide_progress()
+        self.convert_btn.configure(state="normal")
+        self.set_status("Conversion complete")
+        self.log(f"\n{'─'*48}", "info")
+        messagebox.showinfo("Done", "Conversion complete.")
+
+    def _on_error(self, e):
+        self.hide_progress()
+        self.convert_btn.configure(state="normal")
+        self.log(f"Error: {e}", "error")
+        self.set_status("Error — see log")
+
+    def _reset(self):
+        self._dropped_files = []
+        self._drop_label.configure(text="Drop audio files here  |  or Browse")
+        self.clear_log()
+        self.set_status("Ready")
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    WavToMp3Gui(root)
-    root.mainloop()
+    app = WavToMp3Gui()
+    app.mainloop()

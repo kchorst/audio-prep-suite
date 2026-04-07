@@ -6,6 +6,7 @@ File renaming, path helpers, and CSV export utilities.
 import os
 import csv
 from typing import Optional
+from utils.ffmpeg_tools import SUPPORTED_EXTENSIONS
 
 
 def safe_rename(old_path: str, new_path: str) -> str:
@@ -72,10 +73,18 @@ def export_csv(rows: list[dict], output_path: str) -> str:
 
 def collect_audio_files(folder: str, recursive: bool = False) -> list[str]:
     """
-    Collect all supported audio files from a folder.
-    If recursive=True, walks subdirectories as well.
+    Collects paths to all supported audio files within a specified folder.
+
+    Supported audio file extensions are defined in `utils.ffmpeg_tools.SUPPORTED_EXTENSIONS`.
+    Files are returned as absolute paths, sorted alphabetically.
+
+    - If `recursive` is True, the function walks through all subdirectories
+      of the given `folder`.
+    - If `recursive` is False, only the top-level `folder` is scanned.
+
+    Returns an empty list if no supported files are found or if the
+    specified `folder` does not exist or is inaccessible.
     """
-    from utils.ffmpeg_tools import SUPPORTED_EXTENSIONS
 
     results = []
 
@@ -85,9 +94,12 @@ def collect_audio_files(folder: str, recursive: bool = False) -> list[str]:
                 if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS:
                     results.append(os.path.join(root, f))
     else:
-        for f in sorted(os.listdir(folder)):
-            full = os.path.join(folder, f)
-            if os.path.isfile(full) and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS:
-                results.append(full)
+        try:
+            for f in sorted(os.listdir(folder)):
+                full = os.path.join(folder, f)
+                if os.path.isfile(full) and os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS:
+                    results.append(full)
+        except OSError: # Handle cases where folder might not exist or be accessible
+            return []
 
     return results

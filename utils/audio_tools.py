@@ -5,9 +5,17 @@ Shared audio processing helpers: BPM, silence trimming, normalization, key detec
 
 import os
 import numpy as np
-import librosa
-import librosa.effects
-import librosa.util
+
+# Handle librosa import with fallback
+try:
+    import librosa
+    import librosa.effects
+    import librosa.util
+    LIBROSA_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: librosa not available in audio_tools: {e}")
+    LIBROSA_AVAILABLE = False
+    librosa = None
 
 from utils.ffmpeg_tools import decode_to_wav
 
@@ -21,6 +29,9 @@ def analyze_bpm(path: str, trim_silence: bool = False, normalize: bool = False) 
     Analyze the BPM of an audio file.
     Decodes to WAV first if needed. Returns BPM as integer.
     """
+    if not LIBROSA_AVAILABLE:
+        raise ImportError("librosa is not available. Please install: pip install librosa setuptools")
+        
     wav_path, is_temp = decode_to_wav(path)
 
     try:

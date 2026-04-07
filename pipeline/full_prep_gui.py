@@ -1,112 +1,138 @@
 """
-pipeline/full_prep_gui.py
-Full Audio Prep Pipeline — GUI frontend.
-
-Runs: Trim → Normalize → BPM → Key → Rename → Export MP3 → CSV
+pipeline/full_prep_gui.py  v2.0
+Full Audio Prep Pipeline — rebuilt on BaseToolWindow.
+Trim, Normalize, BPM, Key, Rename, MP3, CSV
 """
 
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import tkinter as tk
-from tkinter import filedialog, messagebox
+import customtkinter as ctk
+from tkinter import messagebox
 
+from utils.base_gui import BaseToolWindow
+from utils.threading_tools import run_in_thread
+from utils import config
 from pipeline.full_prep import export_results_csv, run_pipeline
-from utils.threading_tools import GuiLogger, run_in_thread
 
 
-class FullPrepGui:
-    def __init__(self, master: tk.Tk):
-        self.master = master
-        master.title("Full Audio Prep Pipeline")
-
-        self.trim_var = tk.BooleanVar(value=True)
-        self.norm_var = tk.BooleanVar(value=True)
-        self.mp3_var = tk.BooleanVar(value=True)
-        self.csv_var = tk.BooleanVar(value=True)
-
-        self.selected_files: list[str] = []
-        self._results = []
-
-        self._build_ui()
-
-    def _build_ui(self):
-        frame = tk.Frame(self.master)
-        frame.pack(padx=12, pady=10, fill="both", expand=True)
-
-        # Options
-        opts = tk.LabelFrame(frame, text="Pipeline Options", padx=8, pady=6)
-        opts.pack(fill="x", pady=(0, 8))
-
-        tk.Checkbutton(opts, text="Trim silence", variable=self.trim_var).pack(anchor="w")
-        tk.Checkbutton(opts, text="Normalize audio (−14 LUFS)", variable=self.norm_var).pack(anchor="w")
-        tk.Checkbutton(opts, text="Export WAV → MP3", variable=self.mp3_var).pack(anchor="w")
-        tk.Checkbutton(opts, text="Export results CSV", variable=self.csv_var).pack(anchor="w")
-
-        # Buttons
-        tk.Button(frame, text="Browse Audio Files", command=self._browse).pack(pady=2, fill="x")
-        self.run_btn = tk.Button(frame, text="▶  Run Full Pipeline", command=self._start_pipeline)
-        self.run_btn.pack(pady=4, fill="x")
-
-        # Log
-        txt = tk.Text(frame, height=22, width=90)
-        txt.pack(fill="both", expand=True)
-        self.logger = GuiLogger(self.master, txt)
-
-    def _browse(self):
-        files = filedialog.askopenfilenames(
-            title="Select audio files",
-            filetypes=[("Audio Files", "*.wav *.mp3 *.flac *.ogg *.m4a *.aac"), ("All Files", "*.*")],
+class FullPrepGui(BaseToolWindow):
+    def __init__(self):
+        super().__init__(
+            title="Full Prep Pipeline",
+            subtitle="Trim, Normalize, BPM, Key, Rename, MP3, CSV",
+            width=760,
+            height=680,
         )
-        if files:
-            self.selected_files = list(files)
-            self.logger.clear()
-            self.logger.log(f"Queued {len(files)} file(s) for processing.\n")
+        self._results = []
+        self._build_options()
+        self._build_action_buttons()
+
+    def _build_options(self):
+        self.trim_var = ctk.BooleanVar(value=config.get("default_trim", True))
+        self.norm_var = ctk.BooleanVar(value=config.get("default_norm", True))
+        self.mp3_var  = ctk.BooleanVar(value=config.get("default_mp3", True))
+        self.csv_var  = ctk.BooleanVar(value=config.get("default_csv", True))
+
+        ctk.CTkLabel(
+            self.options_frame, text="Pipeline Steps",
+            font=ctk.CTkFont(size=12, weight="bold"), anchor="w"
+        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=12, pady=(10, 6))
+
+        checks = [
+            ("Trim silence",        self.trim_var, 1),
+            ("Normalize (-14 LUFS)", self.norm_var, 2),
+            ("Export WAV to MP3",    self.mp3_var,  3),
+            ("Export results CSV",   self.csv_var,  4),
+        ]
+        for text, var, col in checks:
+            ctk.CTkCheckBox(
+                self.options_frame, text=text, variable=var
+            ).grid(row=1, column=col - 1, sticky="w", padx=12, pady=(0, 10))
+
+        ctk.CTkLabel(
+            self.options_frame,
+            text="BPM detection and Key detection always run.",
+            font=ctk.CTkFont(size=10), text_color="gray", anchor="w"
+        ).grid(row=2, column=0, columnspan=4, sticky="w", padx=12, pady=(0, 8))
+
+    def _build_action_buttons(self):
+        self.run_btn = ctk.CTkButton(
+            self.buttons_frame, text="Run Full Pipeline",
+            command=self._start_pipeline,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            height=40,
+        )
+        self.run_btn.grid(row=0, column=0, padx=(0, 6), pady=8, sticky="ew")
+
+        ctk.CTkButton(
+            self.buttons_frame, text="Clear",
+            fg_color="transparent", border_width=1,
+            command=self._reset,
+        ).grid(row=0, column=2, padx=(6, 0), pady=8, sticky="ew")
+
+    def on_files_selected(self, files):
+        self._results = []
+        self.clear_log()
+        self.log(f"Queued {len(files)} file(s) for processing.", "info")
 
     def _start_pipeline(self):
-        if not self.selected_files:
-            messagebox.showerror("Error", "No files selected.")
+        if not self._dropped_files:
+            messagebox.showerror("No Files", "Please browse or drop audio files first.")
             return
-
-        self.run_btn.config(state="disabled")
-        self.logger.clear()
-        self.logger.log("Starting pipeline…\n")
-
-        run_in_thread(self._run_pipeline, on_error=lambda e: self.logger.log(f"\nFatal error: {e}"))
+        self.clear_log()
+        self.show_progress()
+        self.set_status("Pipeline running…")
+        self.run_btn.configure(state="disabled")
+        run_in_thread(self._run_pipeline, on_error=self._on_error)
 
     def _run_pipeline(self):
         results = run_pipeline(
-            files=self.selected_files,
+            files=self._dropped_files,
             do_trim=self.trim_var.get(),
             do_normalize=self.norm_var.get(),
             do_export_mp3=self.mp3_var.get(),
-            log_fn=self.logger.log,
+            log_fn=self.log,
         )
         self._results = results
-        self.master.after(0, self._finish, results)
+        self.after(0, self._finish, results)
 
-    def _finish(self, results: list[dict]):
-        ok = sum(1 for r in results if r["status"] == "ok")
+    def _finish(self, results):
+        self.hide_progress()
+        self.run_btn.configure(state="normal")
+
+        ok     = sum(1 for r in results if r["status"] == "ok")
         failed = len(results) - ok
-        self.logger.log(f"Pipeline complete: {ok} succeeded, {failed} failed.\n")
+        self.set_status(f"Pipeline complete — {ok} succeeded, {failed} failed")
+        self.log(f"\n{'─'*48}", "info")
+        self.log(f"{ok} succeeded   {failed} failed", "success" if failed == 0 else "error")
 
         if self.csv_var.get() and results:
-            folder = os.path.dirname(self.selected_files[0])
+            folder = os.path.dirname(self._dropped_files[0])
             try:
                 csv_path = export_results_csv(results, folder)
-                self.logger.log(f"CSV saved: {csv_path}")
+                self.log(f"CSV saved: {csv_path}", "info")
             except Exception as e:
-                self.logger.log(f"CSV export failed: {e}")
+                self.log(f"CSV export failed: {e}", "error")
 
-        self.run_btn.config(state="normal")
+        if messagebox.askyesno("Done", f"Pipeline finished.\n{ok} succeeded / {failed} failed\n\nProcess more files?"):
+            self._reset()
 
-        if messagebox.askyesno("Done", f"Pipeline finished.\n{ok} ok / {failed} failed\n\nProcess more files?"):
-            self.selected_files = []
-            self.logger.clear()
+    def _on_error(self, e):
+        self.hide_progress()
+        self.run_btn.configure(state="normal")
+        self.log(f"Fatal error: {e}", "error")
+        self.set_status("Error — see log")
+
+    def _reset(self):
+        self._dropped_files = []
+        self._results = []
+        self._drop_label.configure(text="Drop audio files here  |  or Browse")
+        self.clear_log()
+        self.set_status("Ready")
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    FullPrepGui(root)
-    root.mainloop()
+    app = FullPrepGui()
+    app.mainloop()

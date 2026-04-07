@@ -15,6 +15,11 @@ Audio Prep Suite is a collection of GUI tools built in Python that handle the re
 
 Every tool runs independently or together through a single launcher. All processing is threaded so the UI never freezes on large batches.
 
+For a feature menu + workflow-style guide, see **`AUDIO_USER_GUIDE.md`**.
+
+Audio Prep Suite is standalone, but it can also be used as an optional companion to the YouTube Video Creator suite.
+If you use the YouTube suite’s Master Launcher, set **Settings → Audio Prep Suite** folder path to this repo folder to enable the audio tools.
+
 ---
 
 ## Tools at a Glance

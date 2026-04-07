@@ -1,85 +1,132 @@
 """
-trimmers/trim_silence.py
-Silence Trimmer — GUI frontend.
-Trims leading/trailing silence from audio files and saves trimmed copies.
+trimmers/trim_silence.py  v2.0
+Silence Trimmer — rebuilt on BaseToolWindow.
 """
 
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import customtkinter as ctk
+from tkinter import messagebox
 import soundfile as sf
-import tkinter as tk
-from tkinter import filedialog, messagebox
 
+from utils.base_gui import BaseToolWindow
 from utils.audio_tools import load_and_trim
 from utils.file_tools import append_tag_to_filename
-from utils.threading_tools import GuiLogger, run_in_thread
+from utils.threading_tools import run_in_thread
+from utils import config
 
 
-class TrimGui:
-    def __init__(self, master: tk.Tk):
-        self.master = master
-        master.title("Silence Trimmer")
-
-        self.top_db_var = tk.IntVar(value=30)
-        self.selected_files: list[str] = []
-
-        self._build_ui()
-
-    def _build_ui(self):
-        frame = tk.Frame(self.master)
-        frame.pack(padx=12, pady=10, fill="both", expand=True)
-
-        # Threshold control
-        thresh_row = tk.Frame(frame)
-        thresh_row.pack(anchor="w", pady=4)
-        tk.Label(thresh_row, text="Silence threshold (top_db):").pack(side="left")
-        tk.Spinbox(thresh_row, from_=10, to=60, textvariable=self.top_db_var, width=5).pack(side="left", padx=6)
-        tk.Label(thresh_row, text="(lower = more aggressive trim)").pack(side="left")
-
-        tk.Button(frame, text="Browse Audio Files", command=self._browse).pack(pady=(6, 2), fill="x")
-        tk.Button(frame, text="Trim Silence", command=self._start_trim).pack(pady=2, fill="x")
-
-        txt = tk.Text(frame, height=16, width=80)
-        txt.pack(fill="both", expand=True, pady=(6, 0))
-        self.logger = GuiLogger(self.master, txt)
-
-    def _browse(self):
-        files = filedialog.askopenfilenames(
-            title="Select audio files",
-            filetypes=[("Audio Files", "*.wav *.mp3 *.flac *.ogg *.m4a *.aac"), ("All Files", "*.*")],
+class TrimGui(BaseToolWindow):
+    def __init__(self):
+        super().__init__(
+            title="Silence Trimmer",
+            subtitle="Trim leading and trailing silence from audio files"
         )
-        if files:
-            self.selected_files = list(files)
-            self.logger.log(f"Selected {len(files)} file(s).")
+        self._build_options()
+        self._build_action_buttons()
+
+    def _build_options(self):
+        ctk.CTkLabel(
+            self.options_frame, text="Trim Settings",
+            font=ctk.CTkFont(size=12, weight="bold"), anchor="w"
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 4))
+
+        ctk.CTkLabel(
+            self.options_frame,
+            text="Silence threshold (top_db):",
+            anchor="w"
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=8)
+
+        self.topdb_var = ctk.IntVar(value=config.get("trim_top_db", 30))
+        ctk.CTkSlider(
+            self.options_frame,
+            from_=10, to=60,
+            variable=self.topdb_var,
+            number_of_steps=50,
+            width=200,
+        ).grid(row=1, column=1, padx=8, pady=8)
+
+        self.topdb_label = ctk.CTkLabel(self.options_frame, text="30 dB", width=50)
+        self.topdb_label.grid(row=1, column=2, padx=4, pady=8)
+        self.topdb_var.trace_add("write", self._update_db_label)
+
+        ctk.CTkLabel(
+            self.options_frame,
+            text="Lower = more aggressive trim.  Output saved as  _trimmed.wav  alongside originals.",
+            font=ctk.CTkFont(size=10),
+            text_color="gray",
+            anchor="w"
+        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=16, pady=(0, 10))
+
+    def _update_db_label(self, *_):
+        self.topdb_label.configure(text=f"{self.topdb_var.get()} dB")
+
+    def _build_action_buttons(self):
+        self.trim_btn = ctk.CTkButton(
+            self.buttons_frame, text="Trim Silence",
+            command=self._start_trim
+        )
+        self.trim_btn.grid(row=0, column=0, padx=(0, 6), pady=8, sticky="ew")
+
+        ctk.CTkButton(
+            self.buttons_frame, text="Clear",
+            fg_color="transparent", border_width=1,
+            command=self._reset,
+        ).grid(row=0, column=2, padx=(6, 0), pady=8, sticky="ew")
+
+    def on_files_selected(self, files):
+        self.clear_log()
+        self.log(f"Loaded {len(files)} file(s).", "info")
 
     def _start_trim(self):
-        if not self.selected_files:
-            messagebox.showerror("Error", "No files selected.")
+        if not self._dropped_files:
+            messagebox.showerror("No Files", "Please browse or drop audio files first.")
             return
-        self.logger.clear()
-        self.logger.log("Trimming… please wait.\n")
-        run_in_thread(self._run_trim, on_error=lambda e: self.logger.log(f"Error: {e}"))
+        self.clear_log()
+        self.show_progress()
+        self.set_status("Trimming…")
+        self.trim_btn.configure(state="disabled")
+        run_in_thread(self._run_trim, on_error=self._on_error)
 
     def _run_trim(self):
-        top_db = self.top_db_var.get()
+        top_db = self.topdb_var.get()
+        total = len(self._dropped_files)
 
-        for path in self.selected_files:
+        for i, path in enumerate(self._dropped_files, 1):
+            self.set_status(f"Trimming {i} of {total}…")
             try:
                 y, sr = load_and_trim(path, top_db=top_db)
                 out_path = append_tag_to_filename(path, "trimmed")
-                # Force WAV output for lossless storage
                 out_wav = os.path.splitext(out_path)[0] + ".wav"
                 sf.write(out_wav, y, sr)
-                self.logger.log(f"✓  {os.path.basename(out_wav)}")
+                self.log(f"OK  {os.path.basename(out_wav)}", "success")
             except Exception as e:
-                self.logger.log(f"✗  {os.path.basename(path)}: {e}")
+                self.log(f"ERR {os.path.basename(path)}: {e}", "error")
 
-        self.master.after(0, lambda: messagebox.showinfo("Done", "Trimming complete."))
+        self.after(0, self._finish)
+
+    def _finish(self):
+        self.hide_progress()
+        self.trim_btn.configure(state="normal")
+        self.set_status("Trimming complete")
+        self.log(f"\n{'─'*48}", "info")
+        messagebox.showinfo("Done", "Trimming complete.")
+
+    def _on_error(self, e):
+        self.hide_progress()
+        self.trim_btn.configure(state="normal")
+        self.log(f"Error: {e}", "error")
+        self.set_status("Error — see log")
+
+    def _reset(self):
+        self._dropped_files = []
+        self._drop_label.configure(text="Drop audio files here  |  or Browse")
+        self.clear_log()
+        self.set_status("Ready")
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    TrimGui(root)
-    root.mainloop()
+    app = TrimGui()
+    app.mainloop()
