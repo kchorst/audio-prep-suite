@@ -2,6 +2,10 @@
 
 > A modular Python toolkit for preparing audio files for production, YouTube uploads, sample packs, DJ sets, and automated pipelines.
 
+This repo is the **audio portion** of the YouTube Movie Creator suite.
+
+- YouTube Video Creator Suite (video + YouTube tools): https://github.com/kchorst/youtube-movie-creator-toolkit
+
 ![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![FFmpeg](https://img.shields.io/badge/Requires-FFmpeg-green?logo=ffmpeg)
