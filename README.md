@@ -9,9 +9,19 @@ This repo is the **audio portion** of the YouTube Movie Creator suite.
 ![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![FFmpeg](https://img.shields.io/badge/Requires-FFmpeg-green?logo=ffmpeg)
-![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
+
+## License: Non-Commercial Use Only
+
+This repository contains source-available code and utilities strictly governed by the **PolyForm Noncommercial License 1.0.0**.
+
+* **Allowed:** Free for personal experimentation, individual learning, testing, and academic research.
+* **Prohibited:** Commercial use, corporate deployment, resale, or monetization of this software in a business environment is strictly forbidden.
+
+For the full binding legal text, please see the accompanying [LICENSE.md](LICENSE.md) file.
+
+
 
 ## What Is This?
 
