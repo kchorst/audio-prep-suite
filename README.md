@@ -1,6 +1,20 @@
 # 🎵 Audio Prep Suite
 
-> A modular Python toolkit for preparing audio files for production, YouTube uploads, sample packs, DJ sets, and automated pipelines.
+## v2.3.4 Live Preflight / Setup Message Fix
+
+Audio Prep Suite now checks its setup live before launching tools. It separates Python package problems from external FFmpeg problems, so the home screen no longer keeps telling you to install Python libraries when the remaining issue is actually FFmpeg or PATH. Use **Details** to see the exact Python executable, package versions, and FFmpeg path.
+
+Recommended setup on Windows:
+
+```bat
+install_or_update_deps.bat
+launch.bat
+```
+
+`install_or_update_deps.bat` creates/uses a local `.venv`, upgrades `pip`, `setuptools`, and `wheel`, installs `requirements.txt`, and runs a preflight check. `launch.bat` prefers `.venv\Scripts\python.exe` so the app uses the same Python environment where Librosa was installed. After installing, click **Refresh Check** in the launcher or relaunch the app.
+
+
+> A modular Python toolkit for preparing audio files for YouTube video projects and production workflows without modifying original source files by default.
 
 This repo is the **audio portion** of the YouTube Movie Creator suite.
 
@@ -9,30 +23,49 @@ This repo is the **audio portion** of the YouTube Movie Creator suite.
 ![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![FFmpeg](https://img.shields.io/badge/Requires-FFmpeg-green?logo=ffmpeg)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
 
-## License: Non-Commercial Use Only
-
-This repository contains source-available code and utilities strictly governed by the **PolyForm Noncommercial License 1.0.0**.
-
-* **Allowed:** Free for personal experimentation, individual learning, testing, and academic research.
-* **Prohibited:** Commercial use, corporate deployment, resale, or monetization of this software in a business environment is strictly forbidden.
-
-For the full binding legal text, please see the accompanying [LICENSE.md](LICENSE.md) file.
-
-
-
 ## What Is This?
 
-Audio Prep Suite is a collection of GUI tools built in Python that handle the repetitive prep work that comes before every release, upload, or DJ set — detecting BPM, finding the key, trimming silence, normalizing loudness, converting formats, and renaming files consistently.
+Audio Prep Suite is a collection of GUI tools built in Python that handle the repetitive prep work that comes before a YouTube video render or other production workflow — detecting BPM, finding the key, trimming silence, normalizing loudness, converting formats, and creating consistently named prepared copies.
 
-Every tool runs independently or together through a single launcher. All processing is threaded so the UI never freezes on large batches.
+Every tool runs independently or together through a single launcher. All processing is threaded so the UI stays responsive on large batches. The main workflow is non-destructive: prepared files go into an `audio_prepped/` folder and originals are left untouched unless the user explicitly chooses an advanced original-rename action.
 
 For a feature menu + workflow-style guide, see **`AUDIO_USER_GUIDE.md`**.
 
-Audio Prep Suite is standalone, but it can also be used as an optional companion to the YouTube Video Creator suite.
-If you use the YouTube suite’s Master Launcher, set **Settings → Audio Prep Suite** folder path to this repo folder to enable the audio tools.
+Audio Prep Suite is standalone, but it can also be used as an optional companion to the YouTube Video Toolkit.
+The launcher includes a **YouTube Toolkit** button. It searches for the toolkit launcher in the parent folder, sister directories, and common Desktop toolkit folders. If it cannot find the toolkit automatically, it prompts the user to browse to `master_launcher.py`, `main.py`, or `launcher.py`, then remembers the selected path in `master_config.json`.
+
+If you use the YouTube Toolkit’s Master Launcher, set **Settings → Audio Prep Suite** folder path to this repo folder to enable the audio tools.
+
+
+---
+
+## Safety Model
+
+Audio Prep Suite is designed as a **non-destructive prep utility** for a larger YouTube video workflow.
+
+Default behavior:
+
+```text
+Original folder: user media/audio source files
+Output folder:   audio_prepped/
+Originals:       not renamed, overwritten, moved, or deleted
+```
+
+The Full Pipeline creates prepared audio files and a CSV handoff that a sister YouTube Video Maker app can consume.
+
+Example output:
+
+```text
+audio_prepped/
+  song_BPM120_Am_8A.mp3
+  audio_prep_results.csv
+```
+
+MP3 export preserves stereo unless the user explicitly enables the smaller mono export option.
 
 ---
 
@@ -41,11 +74,11 @@ If you use the YouTube suite’s Master Launcher, set **Settings → Audio Prep 
 | Tool | Script | What it does |
 |---|---|---|
 | 🎛 **Launcher** | `main.py` | Opens a menu to launch any tool |
-| 🥁 **BPM Analyzer** | `bpm_tool/bpm_gui.py` | Batch BPM detection, rename files, export WAV → MP3 |
-| 🔄 **WAV → MP3 Converter** | `converters/wav_to_mp3.py` | Batch convert with optional trim + normalize |
-| ✂️ **Silence Trimmer** | `trimmers/trim_silence.py` | Trim leading/trailing silence, adjustable threshold |
+| 🥁 **BPM Analyzer** | `bpm_tool/bpm_gui.py` | Batch BPM detection; original rename is explicit/advanced |
+| 🔄 **Audio → MP3 Converter** | `converters/wav_to_mp3.py` | Batch create compressed MP3 copies with optional trim + normalize |
+| ✂️ **Silence Trimmer** | `trimmers/trim_silence.py` | Create trimmed WAV copies, adjustable threshold |
 | 🎵 **Key Detector** | `key_detection/key_gui.py` | Musical key + Camelot wheel code, optional rename |
-| ⚡ **Full Pipeline** | `pipeline/full_prep_gui.py` | Trim → Normalize → BPM → Key → Rename → MP3 → CSV |
+| ⚡ **Full Pipeline** | `pipeline/full_prep_gui.py` | Trim → Normalize → BPM → Key → prepared MP3/WAV → CSV |
 
 **Supported formats:** WAV · MP3 · FLAC · OGG · M4A · AAC
 
@@ -59,6 +92,7 @@ audio_prep_suite/
 ├── main.py                         # Launcher — opens any tool from a menu
 ├── requirements.txt                # Python dependencies
 ├── setup_audio_prep_suite.ps1      # Windows folder scaffolding script
+├── config.example.json             # Safe example settings; copy to config.json if needed
 │
 ├── bpm_tool/
 │   ├── __init__.py
@@ -100,15 +134,22 @@ audio_prep_suite/
 
 ### Python Packages
 
-```
-librosa==0.10.1
-numpy==1.26.4
-soundfile==0.12.1
-audioread==3.0.1
-ffmpeg-python==0.2.0
+The current `requirements.txt` installs/updates:
+
+```text
+pip>=23.3
+setuptools>=68
+wheel>=0.41
+librosa>=0.10.1
+numpy>=1.23,<2.0
+soundfile>=0.12.1
+audioread>=3.0.1
+ffmpeg-python>=0.2.0
+customtkinter>=5.2.2
+tkinterdnd2>=0.3.0
 ```
 
-All installed automatically via `pip install -r requirements.txt`.
+All are installed automatically by `install_or_update_deps.bat`.
 
 ---
 
@@ -207,7 +248,7 @@ You should see `(venv)` at the start of your terminal prompt.
 With the virtual environment active:
 
 ```bash
-pip install -r requirements.txt
+install_or_update_deps.bat
 ```
 
 This installs librosa, numpy, soundfile, audioread, and ffmpeg-python. It may take a minute — librosa pulls in several scientific packages.

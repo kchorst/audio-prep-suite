@@ -1,226 +1,302 @@
-# User Guide — Audio Prep Suite
+# Audio Prep Suite — User Guide
 
-This guide is a feature-oriented overview of Audio Prep Suite and a practical “menu” of how to use each tool.
+## v2.3.4 User Guide
 
-If you only want the quick start, see `README.md`.
+Audio Prep Suite is a GUI-first Python toolkit for preparing audio for YouTube/video projects. It is designed to create prepared copies while protecting original files by default.
 
----
-
-## 1) What this tool is
-
-Audio Prep Suite is a modular set of Python GUI tools for preparing audio files for production workflows:
-
-- Trim silence
-- Normalize loudness
-- Detect BPM
-- Detect musical key (and Camelot code)
-- Convert WAV → MP3
-- Run the full pipeline end-to-end
-
-You can run:
-
-- A single tool, directly
-- Or the launcher (`main.py`) to access all tools
-
-### Optional companion to the YouTube Video Creator suite
-
-Audio Prep Suite is standalone, but it can also be used as an optional companion to the YouTube Video Creator suite.
-
-If you use the YouTube suite’s Master Launcher, you can enable these audio tools by setting:
-
-- Settings → **Audio Prep Suite** folder path → point it to this repo’s folder
+Use this guide if you are operating the app. Use `README.md` for setup, development, and repository notes.
 
 ---
 
-## 2) Supported platforms
+## 1. Product Rule
 
-- **Windows**: primary supported platform (best tested)
-- **macOS/Linux**: supported in principle; ensure Python + Tkinter + FFmpeg are set up
+Audio Prep Suite is a non-destructive prep tool.
+
+Default rule:
+
+```text
+Originals stay untouched.
+Prepared audio goes to audio_prepped/.
+```
+
+This matters because the app is often used before a sister YouTube Video Toolkit assembles images, clips, and audio into a final video.
 
 ---
 
-## 3) Requirements and dependencies
+## 2. Recommended Launch Flow
 
-### System
+On Windows, open Command Prompt in the Audio Prep Suite folder and run:
 
-- **Python**: 3.10 or 3.11 (3.12+ may work but is not the primary target)
-- **FFmpeg**: must be installed and available on PATH
-
-### Python packages
-
-Install:
-
-```bash
-pip install -r requirements.txt
+```bat
+install_or_update_deps.bat
+preflight.bat
+launch.bat
 ```
+
+Normally, after the first setup, you only need:
+
+```bat
+launch.bat
+```
+
+The app uses a local `.venv` when available. This avoids the common problem where Librosa is installed in one Python environment but the app launches with another.
 
 ---
 
-## 4) Installation (recommended)
+## 3. Home Screen / Launcher
 
-1) Clone or download the repo
+The launcher opens the main Audio Prep Suite menu.
 
-```bash
-git clone https://github.com/YOUR_USERNAME/audio-prep-suite.git
-cd audio-prep-suite
+You will see buttons for:
+
+- Full Prep Pipeline
+- BPM Analyzer
+- Audio to MP3
+- Silence Trimmer
+- Key Detector
+- YouTube Toolkit
+- Settings
+
+### Setup Banner
+
+If dependencies are missing, the launcher may show a setup warning.
+
+Use:
+
+- **Fix Setup** — run/update dependencies
+- **Refresh Check** — recheck after install
+- **Details** — see Python path, package status, and FFmpeg status
+
+If Python packages are installed but the banner remains, check whether FFmpeg is missing.
+
+---
+
+## 4. YouTube Toolkit Button
+
+The old COT Launcher wording has been replaced.
+
+The button should say:
+
+```text
+YouTube Toolkit
 ```
 
-2) Create and activate a virtual environment
+When clicked, Audio Prep Suite searches for the sister toolkit launcher in nearby folders. If it cannot find the toolkit, it asks you to browse to one of:
 
-```bash
-python -m venv venv
+```text
+master_launcher.py
+main.py
+launcher.py
 ```
 
-Activate:
+After you select it once, the path is saved locally in `master_config.json`.
 
-- Windows (CMD): `venv\Scripts\activate`
-- Windows (PowerShell): `venv\Scripts\Activate.ps1`
-- macOS/Linux: `source venv/bin/activate`
+---
 
-3) Install dependencies
+## 5. Full Prep Pipeline
 
-```bash
-pip install -r requirements.txt
+Use this when you want the normal YouTube audio-prep workflow.
+
+It can:
+
+- trim silence,
+- normalize loudness,
+- estimate BPM,
+- estimate key and Camelot code,
+- export compressed MP3,
+- export CSV handoff.
+
+### Output
+
+The Full Pipeline writes to:
+
+```text
+audio_prepped/
 ```
 
-4) Verify FFmpeg
+Example:
 
-```bash
+```text
+audio_prepped/
+  song_BPM120_Am_8A.mp3
+  audio_prep_results.csv
+```
+
+The original file should remain unchanged.
+
+### Best use
+
+Use Full Pipeline when you are preparing multiple audio files for a video project and want the YouTube Video Toolkit to consume clean prepared outputs.
+
+---
+
+## 6. BPM Analyzer
+
+Use BPM Analyzer when you only need tempo estimates.
+
+Good for:
+
+- beat matching,
+- selecting music with similar tempo,
+- naming prepared assets with BPM tags.
+
+Notes:
+
+- BPM detection requires Librosa.
+- Very short clips, silence, speech, or unusual music may produce weak estimates.
+- Trimming silence first can improve results.
+
+---
+
+## 7. Key Detector
+
+Use Key Detector when you want estimated musical key and Camelot code.
+
+Good for:
+
+- harmonic mixing,
+- selecting compatible music beds,
+- organizing music for video mood/flow.
+
+Notes:
+
+- Key detection is an estimate, not a professional guarantee.
+- It works best on music with clear harmony.
+- It may be unreliable on speech, drums-only clips, noisy files, or very short clips.
+
+---
+
+## 8. Audio to MP3 Converter
+
+Use Audio to MP3 when you mainly want smaller files for video projects.
+
+Recommended wording:
+
+```text
+Compressed MP3 for video
+```
+
+This is better than “downgrade” because the goal is not to damage audio; the goal is to reduce final project size.
+
+Important behavior:
+
+- Export should preserve stereo unless a smaller mono option is explicitly selected.
+- Originals should remain untouched.
+- Outputs should be written as prepared copies.
+
+---
+
+## 9. Silence Trimmer
+
+Use Silence Trimmer when files have dead space at the beginning or end.
+
+Good for:
+
+- cleaning voiceovers,
+- improving BPM detection,
+- reducing awkward gaps before video transitions.
+
+The trim threshold controls how aggressively silence is removed. If too much is removed, use a less aggressive threshold.
+
+---
+
+## 10. Settings
+
+Settings may include:
+
+- theme,
+- accent color,
+- last folder,
+- default trim setting,
+- default normalization setting,
+- default MP3 setting,
+- default CSV setting,
+- MP3 quality,
+- silence trim threshold,
+- audio/images/toolkit paths.
+
+Local settings are stored in `config.json` and/or `master_config.json`.
+
+These are local machine files and should not be committed to GitHub.
+
+---
+
+## 11. Dependency Troubleshooting
+
+### Librosa missing
+
+Run:
+
+```bat
+install_or_update_deps.bat
+preflight.bat
+launch.bat
+```
+
+If the launcher still says Librosa is missing, open **Details** and check the Python executable. The app may be using a different Python than the one where packages were installed.
+
+### FFmpeg missing
+
+Run:
+
+```bat
 ffmpeg -version
 ```
 
----
+If the command fails, install FFmpeg and add its `bin` folder to PATH.
 
-## 5) How to run (launcher and direct)
+### Do not use npm/Expo here
 
-### Option A: Launcher (recommended)
+Audio Prep Suite is Python. These commands do not install Librosa or FFmpeg:
 
-From repo root:
-
-```bash
-python main.py
+```bat
+npx expo install --fix
+npm audit fix
 ```
 
-### Option B: Run tools directly
+Those commands belong to the sister YouTube Toolkit only if that toolkit is an Expo/React Native project.
 
-```bash
-python bpm_tool/bpm_gui.py
-python converters/wav_to_mp3.py
-python trimmers/trim_silence.py
-python key_detection/key_gui.py
-python pipeline/full_prep_gui.py
+---
+
+## 12. Safe Testing Checklist
+
+Before trusting a new build, do this with copied files:
+
+```text
+1. Create a test folder.
+2. Put 2–3 copied audio files inside.
+3. Run launch.bat.
+4. Open Full Prep Pipeline.
+5. Enable MP3 and CSV.
+6. Run the batch.
+7. Confirm originals were not renamed or overwritten.
+8. Confirm audio_prepped/ was created.
+9. Confirm output MP3 files exist.
+10. Confirm audio_prep_results.csv exists.
+```
+
+Pass condition:
+
+```text
+Originals untouched. Prepared outputs created. CSV created.
 ```
 
 ---
 
-## 6) Tool “menu”: which tool should I use?
+## 13. Recommended Normal Workflow
 
-### 6.1 BPM Analyzer (`bpm_tool/bpm_gui.py`)
+For YouTube project prep:
 
-Use this when:
-
-- You want to estimate BPM for a batch
-- You want automatic rename with BPM tags
-- You want optional WAV→MP3 export
-
-Typical flow:
-
-- Select files
-- (Optional) trim silence / normalize
-- Analyze BPM
-- Save results (rename/export)
+```text
+1. Put source audio in a project folder.
+2. Run Full Prep Pipeline.
+3. Use audio_prepped/ as the audio asset folder.
+4. Use audio_prep_results.csv as the handoff/reference file.
+5. Open the YouTube Toolkit to continue video assembly.
+```
 
 ---
 
-### 6.2 WAV → MP3 Converter (`converters/wav_to_mp3.py`)
-
-Use this when:
-
-- You already have WAVs and just want MP3s
-- You want optional normalize/trim during export
-
----
-
-### 6.3 Silence Trimmer (`trimmers/trim_silence.py`)
-
-Use this when:
-
-- Tracks have dead space at the beginning/end
-- BPM detection is skewed by long intros/outros
-
-Key setting:
-
-- `top_db` (threshold). Lower trims more aggressively.
-
----
-
-### 6.4 Key Detector (`key_detection/key_gui.py`)
-
-Use this when:
-
-- You want key + Camelot code for mixing
-- You want optional rename tagging (e.g. `Am`, `8A`)
-
----
-
-### 6.5 Full Prep Pipeline (`pipeline/full_prep_gui.py`)
-
-Use this when:
-
-- You want to process a batch end-to-end
-- You want consistent naming and a CSV summary
-
-Typical steps:
-
-- (Optional) trim silence
-- (Optional) normalize loudness
-- BPM detect
-- Key detect
-- Rename
-- (Optional) export MP3
-- (Optional) export CSV
-
----
-
-## 7) Workflow examples
-
-### Example A: “Make everything upload-ready”
-
-- Run **Full Prep Pipeline**
-- Enable normalize
-- Enable export MP3
-- Enable export CSV
-
-### Example B: “Just fix silence then detect BPM”
-
-- Run **Silence Trimmer**
-- Then run **BPM Analyzer** on the trimmed outputs
-
-### Example C: “Harmonic mixing library”
-
-- Run **Key Detector**
-- Rename files with key + Camelot
-
----
-
-## 8) Troubleshooting
-
-- **FFmpeg not found**: confirm it’s installed and on PATH; restart terminal
-- **No tkinter on Linux**: install `python3-tk`
-- **Librosa installs slowly**: normal; use a venv
-
----
-
-## 9) Notes for integration with other projects
-
-Audio Prep Suite is designed to be useful standalone.
-
-If another project wants to call the pipeline programmatically, the core logic lives in:
-
-- `pipeline/full_prep.py`
-
----
-
-## 10) License
+## 14. License
 
 MIT
