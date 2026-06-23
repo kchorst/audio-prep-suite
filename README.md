@@ -424,4 +424,4 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 ## License
 
-MIT — free to use, modify, and distribute.
+PolyForm Noncommercial License 1.0.0
